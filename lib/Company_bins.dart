@@ -426,7 +426,7 @@ class CompanyBinsScreen extends StatelessWidget {
           .doc(sweeperId)
           .get();
       if (sweeperDoc.exists) {
-        final data = sweeperDoc.data() as Map<String, dynamic>?;
+        final data = sweeperDoc.data();
         sweeperName = (data?['name'] as String?) ?? 'N/A';
       }
     }

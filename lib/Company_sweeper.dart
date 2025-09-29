@@ -38,13 +38,17 @@ class _CompanySweeperState extends State<CompanySweeper> {
           .collection('companies')
           .where('name', isEqualTo: displayName)
           .get();
-      for (final d in byName.docs) ids.add(d.id);
+      for (final d in byName.docs) {
+        ids.add(d.id);
+      }
 
       final byCompanyName = await fs
           .collection('companies')
           .where('companyName', isEqualTo: displayName)
           .get();
-      for (final d in byCompanyName.docs) ids.add(d.id);
+      for (final d in byCompanyName.docs) {
+        ids.add(d.id);
+      }
     }
 
     if (ids.isEmpty) return null;

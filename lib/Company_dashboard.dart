@@ -23,7 +23,7 @@ class CompanyDashboard extends StatelessWidget {
 
     for (final d in byEmail.docs) {
       ids.add(d.id);
-      final m = d.data() as Map<String, dynamic>;
+      final m = d.data();
       final n = (m['name'] ?? m['companyName'] ?? '').toString().trim();
       if (n.isNotEmpty) displayName = n;
     }
@@ -34,13 +34,17 @@ class CompanyDashboard extends StatelessWidget {
           .collection('companies')
           .where('name', isEqualTo: displayName)
           .get();
-      for (final d in byName.docs) ids.add(d.id);
+      for (final d in byName.docs) {
+        ids.add(d.id);
+      }
 
       final byCompanyName = await fs
           .collection('companies')
           .where('companyName', isEqualTo: displayName)
           .get();
-      for (final d in byCompanyName.docs) ids.add(d.id);
+      for (final d in byCompanyName.docs) {
+        ids.add(d.id);
+      }
     }
 
     if (ids.isEmpty) return null;

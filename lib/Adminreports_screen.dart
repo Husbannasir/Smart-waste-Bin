@@ -103,7 +103,7 @@ class ReportsScreen extends StatelessWidget {
           // Predicted Alerts
           const Text("Predicted Alerts",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ...alerts.map((a) => Text("- ${a.message}")).toList(),
+          ...alerts.map((a) => Text("- ${a.message}")),
         ],
       ),
     );

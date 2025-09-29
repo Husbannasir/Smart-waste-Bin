@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'Sweeper_login.dart';
-import 'Sweeper_Dashboard.dart'; // Dashboard ab direct nahi, login k baad khulega
+// Dashboard ab direct nahi, login k baad khulega
 
 class SweeperSignUpScreen extends StatefulWidget {
   const SweeperSignUpScreen({super.key});
@@ -32,7 +32,11 @@ class _SweeperSignUpScreenState extends State<SweeperSignUpScreen> {
     final phone = _phoneController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (name.isEmpty || email.isEmpty || sweeperId.isEmpty || phone.isEmpty || password.isEmpty) {
+    if (name.isEmpty ||
+        email.isEmpty ||
+        sweeperId.isEmpty ||
+        phone.isEmpty ||
+        password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("All fields are required")),
       );
@@ -43,7 +47,8 @@ class _SweeperSignUpScreenState extends State<SweeperSignUpScreen> {
       setState(() => _loading = true);
 
       // 🔹 Firebase Authentication
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+      UserCredential userCredential =
+          await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
@@ -62,7 +67,8 @@ class _SweeperSignUpScreenState extends State<SweeperSignUpScreen> {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Sweeper registered successfully! Please login.")),
+          const SnackBar(
+              content: Text("Sweeper registered successfully! Please login.")),
         );
 
         // ✅ Ab login screen pe le jao (dashboard direct nahi khulega)
@@ -201,7 +207,8 @@ class _SweeperSignUpScreenState extends State<SweeperSignUpScreen> {
                   onTap: () {
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => const SweeperLoginScreen()),
+                      MaterialPageRoute(
+                          builder: (context) => const SweeperLoginScreen()),
                     );
                   },
                   child: const Text(

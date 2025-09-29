@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_app/Sweeper_Panel.dart';
 import 'package:my_app/Sweeper_pass.dart';
 import 'Sweeper_signup.dart';
@@ -39,7 +38,8 @@ class SweeperLoginScreenState extends State<SweeperLoginScreen> {
 
   Future<void> _loginSweeper() async {
     try {
-      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final userCredential =
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );

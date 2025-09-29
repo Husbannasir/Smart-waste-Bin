@@ -8,10 +8,10 @@ class VerificationScreen extends StatefulWidget {
   final String phoneNumber;
 
   const VerificationScreen({
-    Key? key,
+    super.key,
     required this.verificationId,
     required this.phoneNumber,
-  }) : super(key: key);
+  });
 
   @override
   _VerificationScreenState createState() => _VerificationScreenState();
@@ -144,4 +144,3 @@ class _VerificationScreenState extends State<VerificationScreen> {
     );
   }
 }
-
