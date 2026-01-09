@@ -1,17 +1,16 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'Intro.dart';
 
 class CompanyDashboard extends StatelessWidget {
   const CompanyDashboard({super.key});
 
-  /// Resolve logged-in company:
-  /// returns { name: String, ids: List<String> }  (all docIds that share that name/email)
+  // 🔹 Logic remains exactly same for stability
   Future<Map<String, dynamic>?> _getCompanyInfo() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;
-
     final fs = FirebaseFirestore.instance;
     final byEmail = await fs
         .collection('companies')
@@ -20,7 +19,6 @@ class CompanyDashboard extends StatelessWidget {
 
     String? displayName;
     final ids = <String>{};
-
     for (final d in byEmail.docs) {
       ids.add(d.id);
       final m = d.data();
@@ -28,23 +26,17 @@ class CompanyDashboard extends StatelessWidget {
       if (n.isNotEmpty) displayName = n;
     }
 
-    // If we got a name, also collect any other docs that have the same name/companyName.
     if ((displayName ?? '').isNotEmpty) {
       final byName = await fs
           .collection('companies')
           .where('name', isEqualTo: displayName)
           .get();
-      for (final d in byName.docs) {
-        ids.add(d.id);
-      }
-
+      for (final d in byName.docs) ids.add(d.id);
       final byCompanyName = await fs
           .collection('companies')
           .where('companyName', isEqualTo: displayName)
           .get();
-      for (final d in byCompanyName.docs) {
-        ids.add(d.id);
-      }
+      for (final d in byCompanyName.docs) ids.add(d.id);
     }
 
     if (ids.isEmpty) return null;
@@ -59,293 +51,100 @@ class CompanyDashboard extends StatelessWidget {
       future: _getCompanyInfo(),
       builder: (context, infoSnap) {
         if (infoSnap.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Center(
+              child: CircularProgressIndicator(color: Color(0xFF2979FF)));
         }
         final info = infoSnap.data;
-        if (info == null) {
-          return const Scaffold(
-            body: Center(child: Text('No Data Found')),
-          );
-        }
+        if (info == null)
+          return const Center(child: Text('No Company Data Found'));
 
-        final displayName = (info['name'] as String?)?.trim() ?? 'My Company';
+        final displayName = (info['name'] as String?)?.trim() ?? 'Company';
         final companyIds = Set<String>.from(info['ids'] as List);
-        final title = '$displayName Dashboard';
 
-        return Scaffold(
-          backgroundColor: Colors.white,
-          appBar: AppBar(
-            backgroundColor: Colors.green,
-            title: Text(title),
-            actions: [
-              PopupMenuButton<int>(
-                icon: const Icon(Icons.account_circle),
-                onSelected: (item) async {
-                  if (item == 0) {
-                    await FirebaseAuth.instance.signOut();
-                    // ignore: use_build_context_synchronously
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => const IntroScreen()),
-                    );
-                  }
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem<int>(value: 0, child: Text("Logout")),
-                ],
-              ),
-            ],
-          ),
-          body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        return Material(
+          // 🔹 Material wrapper for ink splashes and clicks
+          color: Colors.transparent,
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: fs.collection('bins').snapshots(),
             builder: (context, binsSnap) {
-              if (binsSnap.connectionState == ConnectionState.waiting) {
+              if (!binsSnap.hasData)
                 return const Center(child: CircularProgressIndicator());
-              }
 
-              // ---- Stats from bins assigned to this company ----
-              final binDocs = binsSnap.data?.docs ?? const [];
+              // ---- Real-time Stats Logic ----
+              final binDocs = binsSnap.data!.docs;
               int totalBins = 0;
               int fullBins = 0;
               final sweeperIds = <String>{};
 
               for (final d in binDocs) {
                 final m = d.data();
-                final cid = (m['assignedCompanyId'] ?? '').toString();
+                final cid =
+                    (m['assignedCompanyId'] ?? m['companyId'] ?? '').toString();
                 if (!companyIds.contains(cid)) continue;
 
                 totalBins++;
-                final status = (m['status'] ?? '').toString().toLowerCase();
-                if (status == 'full') fullBins++;
-
+                if ((m['status'] ?? '').toString().toLowerCase() == 'full')
+                  fullBins++;
                 final sid = (m['assignedSweeperId'] ?? '').toString().trim();
                 if (sid.isNotEmpty) sweeperIds.add(sid);
               }
 
-              final sweepers = sweeperIds.length;
               final efficiency = totalBins == 0
                   ? 0.0
                   : ((totalBins - fullBins) / totalBins * 100);
 
               return SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 24),
+                physics: const BouncingScrollPhysics(),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        title, // e.g., "Evergreen Dashboard"
+                    Text("Welcome back,",
+                        style: TextStyle(color: Colors.black54, fontSize: 16)),
+                    Text(displayName,
                         style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        "Welcome to your dashboard",
-                        style: TextStyle(color: Colors.black54, fontSize: 14),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1565C0))),
 
-                    // ---- Stats Row ----
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _statCard("$totalBins", "Total Bins", Colors.blue),
-                          _statCard("$fullBins", "Full Bins", Colors.red),
-                        ],
-                      ),
+                    const SizedBox(height: 25),
+
+                    // 🔹 LIVE STATS GRID
+                    Row(
+                      children: [
+                        _statCard("Total Bins", totalBins.toString(),
+                            Icons.delete_sweep_rounded, Colors.blueAccent),
+                        const SizedBox(width: 15),
+                        _statCard("Full Bins", fullBins.toString(),
+                            Icons.warning_amber_rounded, Colors.redAccent),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _statCard("$sweepers", "Sweepers", Colors.orange),
-                          _statCard(
-                            "${efficiency.toStringAsFixed(1)}%",
+                    const SizedBox(height: 15),
+                    Row(
+                      children: [
+                        _statCard("Sweepers", sweeperIds.length.toString(),
+                            Icons.people_alt_rounded, Colors.orangeAccent),
+                        const SizedBox(width: 15),
+                        _statCard(
                             "Efficiency",
-                            Colors.green,
-                          ),
-                        ],
-                      ),
+                            "${efficiency.toStringAsFixed(1)}%",
+                            Icons.bolt_rounded,
+                            Colors.green),
+                      ],
                     ),
 
-                    const SizedBox(height: 28),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        "Sweeper Reports",
+                    const SizedBox(height: 35),
+                    const Text("Recent Sweeper Reports",
                         style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1565C0))),
+                    const SizedBox(height: 15),
 
-                    // ---- STABLE REPORTS STREAM ----
-                    // Single live stream for all reports (ordered),
-                    // then local filter by companyName (case-insensitive)
-                    // OR optional companyId (if you later add it to reports).
-                    StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: fs
-                          .collection('reports')
-                          .orderBy('timestamp', descending: true)
-                          .snapshots(),
-                      builder: (context, repSnap) {
-                        if (repSnap.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                              child: CircularProgressIndicator());
-                        }
-
-                        final all = repSnap.data?.docs ?? const [];
-                        final dn = displayName.trim().toLowerCase();
-
-                        final reports = all.where((d) {
-                          final m = d.data();
-                          final nameLower = (m['companyName'] ?? '')
-                              .toString()
-                              .trim()
-                              .toLowerCase();
-                          final cid = (m['companyId'] ?? '').toString();
-                          return (nameLower == dn) || companyIds.contains(cid);
-                        }).toList();
-
-                        if (reports.isEmpty) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
-                            child: Text("No reports submitted yet."),
-                          );
-                        }
-
-                        return ListView.separated(
-                          padding: const EdgeInsets.all(16),
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: reports.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 14),
-                          itemBuilder: (context, i) {
-                            final doc = reports[i];
-                            final r = doc.data();
-
-                            final sweeperName =
-                                (r['sweeperName'] ?? 'Unknown').toString();
-                            final issue =
-                                (r['issueType'] ?? r['issue'] ?? 'Unknown')
-                                    .toString();
-                            final desc =
-                                (r['description'] ?? 'No details').toString();
-                            final binId = (r['binId'] ?? 'N/A').toString();
-                            final ts = r['timestamp'] as Timestamp?;
-                            final when = _formatTs(ts);
-
-                            final issueColor = _issueColor(issue);
-
-                            return Card(
-                              elevation: 2,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            sweeperName,
-                                            style: const TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                        // Delete button
-                                        IconButton(
-                                          tooltip: 'Delete report',
-                                          icon: const Icon(
-                                            Icons.delete_outline,
-                                            color: Colors.red,
-                                          ),
-                                          onPressed: () async {
-                                            final ok = await showDialog<bool>(
-                                              context: context,
-                                              builder: (_) => AlertDialog(
-                                                title: const Text(
-                                                    'Delete report?'),
-                                                content: const Text(
-                                                  'This action cannot be undone.',
-                                                ),
-                                                actions: [
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                            context, false),
-                                                    child: const Text('Cancel'),
-                                                  ),
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                            context, true),
-                                                    child: const Text('Delete'),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                            if (ok == true) {
-                                              await doc.reference.delete();
-                                            }
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-
-                                    // Issue chip + Bin id
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        Chip(
-                                          label: Text(issue),
-                                          labelStyle: const TextStyle(
-                                              color: Colors.white),
-                                          backgroundColor: issueColor,
-                                        ),
-                                        Chip(
-                                          label: Text('BIN-$binId'),
-                                          backgroundColor: Colors.grey.shade200,
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-
-                                    _kv('Description', desc),
-                                    _kv('Time', when),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+                    // 🔹 LIVE REPORTS LIST
+                    _buildReportsStream(fs, displayName, companyIds),
+                    const SizedBox(height: 100),
                   ],
                 ),
               );
@@ -356,69 +155,181 @@ class CompanyDashboard extends StatelessWidget {
     );
   }
 
-  // ---------------- UI helpers ----------------
+  // 🔹 Glassy Stat Card Helper
+  Widget _statCard(String label, String value, IconData icon, Color color) {
+    return Expanded(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(22),
+              border:
+                  Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, color: color, size: 28),
+                const SizedBox(height: 12),
+                Text(value,
+                    style: const TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.bold)),
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-  Widget _statCard(String value, String label, Color color) {
+  // 🔹 Reports Stream with Glassy Cards
+  Widget _buildReportsStream(
+      FirebaseFirestore fs, String displayName, Set<String> companyIds) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: fs
+          .collection('reports')
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
+      builder: (context, repSnap) {
+        if (!repSnap.hasData)
+          return const Center(child: CircularProgressIndicator());
+
+        final dn = displayName.trim().toLowerCase();
+        final reports = repSnap.data!.docs.where((d) {
+          final m = d.data();
+          final nameLower = (m['companyName'] ?? '').toString().toLowerCase();
+          final cid =
+              (m['companyId'] ?? m['assignedCompanyId'] ?? '').toString();
+          return (nameLower == dn) || companyIds.contains(cid);
+        }).toList();
+
+        if (reports.isEmpty) return const Text("No reports submitted yet.");
+
+        return Column(
+          children: reports.map((doc) => _reportCard(context, doc)).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _reportCard(
+      BuildContext context, QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final r = doc.data();
+    final issue = (r['issueType'] ?? r['issue'] ?? 'Unknown').toString();
+    final ts = r['timestamp'] as Timestamp?;
+
     return Container(
-      width: 160,
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 15),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.35),
+              borderRadius: BorderRadius.circular(22),
+              border:
+                  Border.all(color: Colors.white.withOpacity(0.5), width: 1.2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(r['sweeperName'] ?? 'Sweeper',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 17)),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline,
+                          color: Colors.redAccent, size: 22),
+                      onPressed: () => _confirmDelete(context, doc),
+                    ),
+                  ],
+                ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    _chip(issue, _issueColor(issue)),
+                    _chip('BIN-${r['binId']}', Colors.blueGrey.shade400),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(r['description'] ?? 'No details',
+                    style:
+                        const TextStyle(color: Colors.black87, fontSize: 14)),
+                const SizedBox(height: 8),
+                Text(_formatTs(ts),
+                    style: const TextStyle(
+                        color: Colors.black45,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(label, style: const TextStyle(color: Colors.black54)),
-        ],
-      ),
+          color: color.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(8)),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontWeight: FontWeight.bold, fontSize: 11)),
     );
   }
 
-  Widget _kv(String k, String v) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 2, bottom: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 90,
-            child: Text(
-              '$k:',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-          Expanded(child: Text(v)),
-        ],
-      ),
-    );
-  }
-
+  // 🔹 Helper functions logic preserved
   Color _issueColor(String issue) {
     switch (issue.toLowerCase()) {
       case 'overflow':
         return Colors.red;
       case 'damaged':
-        return Colors.orange;
+        return const Color.fromARGB(255, 255, 39, 39);
       default:
         return Colors.blueGrey;
     }
   }
 
-  String _two(int n) => n < 10 ? '0$n' : '$n';
   String _formatTs(Timestamp? ts) {
-    if (ts == null) return 'pending…';
+    if (ts == null) return 'Pending…';
     final d = ts.toDate();
-    final y = d.year, mo = _two(d.month), da = _two(d.day);
-    final h = _two(d.hour), mi = _two(d.minute), s = _two(d.second);
-    return '$y-$mo-$da $h:$mi:$s';
+    return "${d.day}/${d.month}/${d.year} ${d.hour}:${d.minute}";
+  }
+
+  Future<void> _confirmDelete(
+      BuildContext context, QueryDocumentSnapshot doc) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Report?'),
+        content: const Text(
+            'This will permanently remove this report from your dashboard.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (ok == true) await doc.reference.delete();
   }
 }

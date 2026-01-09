@@ -1,41 +1,38 @@
 plugins {
     id("com.android.application")
-    id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
-
-    // Step 3: Google Services plugin
-    id("com.google.gms.google-services")
+    id("com.google.gms.google-services") // Firebase
 }
 
 android {
     namespace = "com.example.my_app"
-    compileSdk = 34
+    compileSdk = 35 // ✅ updated as per plugin requirement
     ndkVersion = "27.0.12077973"
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
-    }
 
     defaultConfig {
         applicationId = "com.example.my_app"
-
-        // Firebase plugins require minSdk 23
         minSdk = 23
-        targetSdk = 34
-
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true // ✅ important for flutter_osm_plugin
+    }
+
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+
     buildTypes {
-        release {
+        getByName("release") {
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
@@ -45,9 +42,16 @@ flutter {
 }
 
 dependencies {
+    // ✅ Required for flutter_osm_plugin
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
+    // ✅ Firebase dependencies
     implementation("com.google.firebase:firebase-analytics:21.6.2")
-    // 👇 yaha aur Firebase dependencies add kar sakti ho apne use-case k hisaab se
-    // For example:
-    // implementation("com.google.firebase:firebase-auth:23.0.0")
-    // implementation("com.google.firebase:firebase-firestore:25.1.1")
+    implementation("com.google.firebase:firebase-auth:23.0.0")
+    implementation("com.google.firebase:firebase-firestore:25.1.1")
+    implementation("com.google.firebase:firebase-storage:21.0.0")
+    implementation("com.google.firebase:firebase-messaging:24.0.0")
+
+    // ✅ Kotlin Standard Library
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.23")
 }

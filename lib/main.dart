@@ -5,12 +5,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Screens
 import 'firebase_options.dart';
+import 'splash_screen.dart';
 import 'Intro.dart';
 import 'Admin_dashboard.dart';
 import 'Company_dashboard.dart';
 import 'sweeper_dashboard.dart';
 
-/// AuthWrapper: decides where to go (Intro/Login OR Dashboard)
+/// ---------------------------
+/// AuthWrapper Class
+/// ---------------------------
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -121,6 +124,9 @@ class AuthWrapper extends StatelessWidget {
   }
 }
 
+/// ---------------------------
+/// MAIN FUNCTION
+/// ---------------------------
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -132,6 +138,9 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
+/// ---------------------------
+/// MAIN APP WIDGET
+/// ---------------------------
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -140,10 +149,11 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Smart Waste',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: const AuthWrapper(), // ✅ wrapper to decide screen
+      theme: ThemeData(primarySwatch: Colors.green),
+      home: const SplashScreen(), // ✅ First Screen = Splash
+      routes: {
+        '/auth': (context) => const AuthWrapper(), // ✅ Redirect after splash
+      },
     );
   }
 }

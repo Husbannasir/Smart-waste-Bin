@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -24,8 +25,15 @@ class _CompanySignUpScreenState extends State<CompanySignUpScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<void> _registerCompany() async {
+    // 🔹 Loading Dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+          child: CircularProgressIndicator(color: Color(0xFF2972FE))),
+    );
+
     try {
-      // ✅ Firebase Auth - Create User
       UserCredential userCredential =
           await _auth.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
@@ -34,30 +42,34 @@ class _CompanySignUpScreenState extends State<CompanySignUpScreen> {
 
       User? user = userCredential.user;
 
-      // ✅ Firestore - Save company details (Admin will see this)
       await _firestore.collection("companies").doc(user!.uid).set({
         "name": _companyNameController.text.trim(),
         "email": _emailController.text.trim(),
         "companyId": _companyIdController.text.trim(),
         "phone": _phoneController.text.trim(),
-        "bins": 0, // default count
-        "sweepers": 0, // default count
+        "bins": 0,
+        "sweepers": 0,
         "timestamp": FieldValue.serverTimestamp(),
       });
 
-      // ✅ Success message
+      Navigator.pop(context); // Remove loading
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Company registered successfully!")),
+        const SnackBar(
+            content: Text("Company registered successfully!"),
+            behavior: SnackBarBehavior.floating),
       );
 
-      // ✅ Navigate to Login Screen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const CompanyLoginScreen()),
       );
     } on FirebaseAuthException catch (e) {
+      Navigator.pop(context); // Remove loading
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Registration failed")),
+        SnackBar(
+            content: Text(e.message ?? "Registration failed"),
+            behavior: SnackBarBehavior.floating),
       );
     }
   }
@@ -65,165 +77,209 @@ class _CompanySignUpScreenState extends State<CompanySignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FAFF),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 10),
-            Center(
-              child: Text(
-                'Company Sign up',
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
+      body: Stack(
+        children: [
+          // 1. Background Gradient
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFF0F7FF),
+                  Color(0xFFE1F5FE),
+                  Color(0xFFE3F2FD)
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            Center(
-              child: Text(
-                'Create an account to continue!',
-                style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-              ),
-            ),
-            const SizedBox(height: 24),
+          ),
 
-            // Company Name
-            TextField(
-              controller: _companyNameController,
-              decoration: InputDecoration(
-                labelText: 'Company Name',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
+          // 2. Main Content
+          SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildBackButton(),
+                  const SizedBox(height: 20),
 
-            // Email
-            TextField(
-              controller: _emailController,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 16),
+                  // 🔹 Header Section
+                  const Text('Create Account',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1565C0))),
+                  const Text('Join the smart waste management network',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, color: Colors.black54)),
 
-            // Company ID
-            TextField(
-              controller: _companyIdController,
-              decoration: InputDecoration(
-                labelText: 'Company ID',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
+                  const SizedBox(height: 35),
 
-            // Phone Number
-            TextField(
-              controller: _phoneController,
-              decoration: InputDecoration(
-                labelText: 'Phone Number',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 16),
+                  // 🔹 Glassy Signup Card
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                      child: Container(
+                        padding: const EdgeInsets.all(25),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
+                              color: Colors.white.withOpacity(0.6), width: 1.5),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildGlassInput(_companyNameController,
+                                'Company Name', Icons.business_rounded),
+                            const SizedBox(height: 16),
+                            _buildGlassInput(_emailController, 'Official Email',
+                                Icons.email_outlined,
+                                keyboardType: TextInputType.emailAddress),
+                            const SizedBox(height: 16),
+                            _buildGlassInput(_companyIdController, 'Company ID',
+                                Icons.badge_outlined),
+                            const SizedBox(height: 16),
+                            _buildGlassInput(_phoneController, 'Phone Number',
+                                Icons.phone_android_rounded,
+                                keyboardType: TextInputType.phone),
+                            const SizedBox(height: 16),
+                            _buildGlassPasswordInput(),
+                            const SizedBox(height: 30),
 
-            // Password
-            TextField(
-              controller: _passwordController,
-              obscureText: _obscurePassword,
-              decoration: InputDecoration(
-                labelText: 'Set Password',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _obscurePassword = !_obscurePassword;
-                    });
-                  },
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Login Option
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Already have an account? ',
-                  style: TextStyle(color: Colors.grey[700]),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const CompanyLoginScreen(),
+                            // 🔹 Register Button
+                            _buildRegisterButton(),
+                          ],
+                        ),
                       ),
-                    );
-                  },
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(
-                      color: Color(0xFF2972FE),
-                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
 
-            // Register Button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _registerCompany,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2972FE),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Register',
-                  style: TextStyle(fontSize: 18, color: Colors.white),
-                ),
+                  const SizedBox(height: 25),
+                  _buildLoginPrompt(),
+                  const SizedBox(height: 20),
+                ],
               ),
             ),
-            const SizedBox(height: 30),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackButton() {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.5), shape: BoxShape.circle),
+          child: const Icon(Icons.arrow_back_ios_new,
+              size: 18, color: Color(0xFF1565C0)),
         ),
       ),
+    );
+  }
+
+  Widget _buildGlassInput(
+      TextEditingController controller, String label, IconData icon,
+      {TextInputType keyboardType = TextInputType.text}) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Color(0xFF1565C0), fontSize: 14),
+        prefixIcon: Icon(icon, color: const Color(0xFF2972FE), size: 20),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.3),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.5)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFF2972FE), width: 1.5),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGlassPasswordInput() {
+    return TextField(
+      controller: _passwordController,
+      obscureText: _obscurePassword,
+      decoration: InputDecoration(
+        labelText: 'Set Password',
+        labelStyle: const TextStyle(color: Color(0xFF1565C0), fontSize: 14),
+        prefixIcon: const Icon(Icons.lock_outline_rounded,
+            color: Color(0xFF2972FE), size: 20),
+        suffixIcon: IconButton(
+          icon: Icon(
+              _obscurePassword
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              color: Colors.black45,
+              size: 20),
+          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+        ),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.3),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.5)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFF2972FE), width: 1.5),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRegisterButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: ElevatedButton(
+        onPressed: _registerCompany,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2972FE),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          elevation: 8,
+          shadowColor: const Color(0xFF2972FE).withOpacity(0.4),
+        ),
+        child: const Text('Create Company Account',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildLoginPrompt() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text('Already registered? ',
+            style: TextStyle(color: Colors.black54)),
+        GestureDetector(
+          onTap: () => Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const CompanyLoginScreen())),
+          child: const Text('Sign In',
+              style: TextStyle(
+                  color: Color(0xFF2972FE), fontWeight: FontWeight.bold)),
+        ),
+      ],
     );
   }
 }

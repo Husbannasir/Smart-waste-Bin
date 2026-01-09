@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,26 +14,38 @@ class IntroScreen extends StatefulWidget {
   State<IntroScreen> createState() => _IntroScreenState();
 }
 
-class _IntroScreenState extends State<IntroScreen> {
+class _IntroScreenState extends State<IntroScreen>
+    with TickerProviderStateMixin {
   User? _currentUser;
   bool _isAdmin = false;
   bool _loading = true;
 
+  // Animations for background moving circles
+  late AnimationController _controller;
+
   @override
   void initState() {
     super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    )..repeat(reverse: true);
     _checkUser();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   Future<void> _checkUser() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      // Check if this user is in "admins" collection
       final doc = await FirebaseFirestore.instance
           .collection('admins')
           .doc(user.uid)
           .get();
-
       if (doc.exists) {
         setState(() {
           _isAdmin = true;
@@ -40,212 +53,222 @@ class _IntroScreenState extends State<IntroScreen> {
         });
       }
     }
-    setState(() {
-      _loading = false;
-    });
+    setState(() => _loading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body:
+            Center(child: CircularProgressIndicator(color: Color(0xFF22B5FE))),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 236, 234, 234),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 10),
-              const Text(
-                'Choose your dashboard',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 30),
+      body: Stack(
+        children: [
+          // 1. Base Gradient
+          Container(color: const Color(0xFFF3F7FF)),
 
-              // Admin Dashboard
-              Container(
-                margin: const EdgeInsets.only(bottom: 24),
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  border: Border.all(color: Colors.indigo, width: 3),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Admin Dashboard',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
+          // 2. Animated Background Blobs (Wow Factor)
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              return Stack(
+                children: [
+                  _buildAnimatedBlob(
+                    color: const Color(0xFF22B5FE).withOpacity(0.4),
+                    top: 100 * _controller.value,
+                    left: 50 * _controller.value,
+                    size: 200,
+                  ),
+                  _buildAnimatedBlob(
+                    color: const Color(0xFFED5B5B).withOpacity(0.3),
+                    bottom: 150 * _controller.value,
+                    right: -20 * _controller.value,
+                    size: 250,
+                  ),
+                  _buildAnimatedBlob(
+                    color: const Color(0xFF1DE9B6).withOpacity(0.3),
+                    top: 400 * (1 - _controller.value),
+                    left: -30,
+                    size: 180,
+                  ),
+                ],
+              );
+            },
+          ),
+
+          // 3. Main Content with Glassmorphism
+          SafeArea(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      // Logo Section with subtle animation
+                      TweenAnimationBuilder(
+                        tween: Tween<double>(begin: 0, end: 1),
+                        duration: const Duration(seconds: 1),
+                        builder: (context, value, child) {
+                          return Opacity(
+                            opacity: value,
+                            child: Transform.scale(scale: value, child: child),
+                          );
+                        },
+                        child: const Icon(Icons.auto_delete_rounded,
+                            size: 80, color: Color(0xFF2D3142)),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Monitor all companies, sweepers, and bins across the entire system',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Smart Waste',
+                        style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF2D3142),
+                            letterSpacing: -1),
+                      ),
+                      const Text(
+                        'Select your portal to continue',
+                        style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.black54,
+                            fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 40),
+
+                      // Glass Cards
+                      _buildGlassyPortalCard(
+                        title: 'Admin Dashboard',
+                        subtitle: 'Control & Monitor System',
+                        icon: Icons.admin_panel_settings_rounded,
+                        accentColor: const Color(0xFF22B5FE),
                         onPressed: () {
                           if (_currentUser != null && _isAdmin) {
-                            // Already logged in → go to dashboard
                             Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const AdminDashboardScreen(),
-                              ),
-                            );
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const AdminDashboardScreen()));
                           } else {
-                            // Not logged in → go to login
                             Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const AdminLoginPage(),
-                              ),
-                            );
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const AdminLoginPage()));
                           }
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.indigo[400],
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: Text(
-                          (_currentUser != null && _isAdmin)
-                              ? 'Go to Dashboard'
-                              : 'Access Admin Panel',
-                          style: const TextStyle(color: Colors.white),
-                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Sweeper Dashboard
-              Container(
-                margin: const EdgeInsets.only(bottom: 24),
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  border: Border.all(color: Color(0xFFED5B5B), width: 3),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Sweeper Dashboard',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Receive alerts, manage routes, and resolve complaints efficiently',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
+                      _buildGlassyPortalCard(
+                        title: 'Sweeper Portal',
+                        subtitle: 'Manage Routes & Jobs',
+                        icon: Icons.cleaning_services_rounded,
+                        accentColor: const Color(0xFFED5B5B),
+                        onPressed: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const SweeperLoginScreen(),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Access Sweeper Panel',
-                          style: TextStyle(color: Colors.white),
-                        ),
+                                builder: (_) => const SweeperLoginScreen())),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Company Dashboard
-              Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  border: Border.all(color: Colors.green, width: 3),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Company Dashboard',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Track operations, manage complaints, and generate comprehensive reports',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
+                      _buildGlassyPortalCard(
+                        title: 'Company Portal',
+                        subtitle: 'Analyze Reports & Data',
+                        icon: Icons.business_rounded,
+                        accentColor: const Color(0xFF2D3142),
+                        onPressed: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const CompanyLoginScreen(),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Access Company Panel',
-                          style: TextStyle(color: Colors.white),
-                        ),
+                                builder: (_) => const CompanyLoginScreen())),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🔹 Helper to build animated background circles
+  Widget _buildAnimatedBlob(
+      {required Color color,
+      double? top,
+      double? left,
+      double? right,
+      double? bottom,
+      required double size}) {
+    return Positioned(
+      top: top,
+      left: left,
+      right: right,
+      bottom: bottom,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+    );
+  }
+
+  // 🔹 Modular Glassy Card
+  Widget _buildGlassyPortalCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color accentColor,
+    required VoidCallback onPressed,
+  }) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        height: 100,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2), // Transparency
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: accentColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(icon, color: accentColor, size: 30),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title,
+                            style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF2D3142))),
+                        Text(subtitle,
+                            style: const TextStyle(
+                                fontSize: 13, color: Colors.black54)),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios_rounded,
+                      size: 16, color: accentColor.withOpacity(0.5)),
+                ],
+              ),
+            ),
           ),
         ),
       ),

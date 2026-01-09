@@ -1,9 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'Sweeper_login.dart';
-// Dashboard ab direct nahi, login k baad khulega
 
 class SweeperSignUpScreen extends StatefulWidget {
   const SweeperSignUpScreen({super.key});
@@ -38,7 +37,9 @@ class _SweeperSignUpScreenState extends State<SweeperSignUpScreen> {
         phone.isEmpty ||
         password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("All fields are required")),
+        const SnackBar(
+            content: Text("⚠️ Please fill all fields"),
+            backgroundColor: Colors.orangeAccent),
       );
       return;
     }
@@ -46,7 +47,6 @@ class _SweeperSignUpScreenState extends State<SweeperSignUpScreen> {
     try {
       setState(() => _loading = true);
 
-      // 🔹 Firebase Authentication
       UserCredential userCredential =
           await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -56,7 +56,6 @@ class _SweeperSignUpScreenState extends State<SweeperSignUpScreen> {
       User? user = userCredential.user;
 
       if (user != null) {
-        // 🔹 Firestore me save
         await _firestore.collection("sweepers").doc(user.uid).set({
           "uid": user.uid,
           "name": name,
@@ -64,188 +63,210 @@ class _SweeperSignUpScreenState extends State<SweeperSignUpScreen> {
           "sweeperId": sweeperId,
           "phone": phone,
           "createdAt": FieldValue.serverTimestamp(),
+          "role": "sweeper", // Added for role-based access
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("Sweeper registered successfully! Please login.")),
-        );
-
-        // ✅ Ab login screen pe le jao (dashboard direct nahi khulega)
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const SweeperLoginScreen()),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text("✅ Registration Successful!"),
+                backgroundColor: Colors.green),
+          );
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const SweeperLoginScreen()));
+        }
       }
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Signup failed")),
+        SnackBar(
+            content: Text("❌ ${e.message}"), backgroundColor: Colors.redAccent),
       );
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FAFF),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFE0EAFC), Color(0xFFCFDEF3)],
+          ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Stack(
           children: [
-            const SizedBox(height: 10),
-            const Center(
-              child: Text(
-                'Sweeper Sign up',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Center(
-              child: Text(
-                'Create an account to continue!',
-                style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-              ),
-            ),
-            const SizedBox(height: 24),
+            // Decorative shapes
+            Positioned(
+                top: -50,
+                left: -50,
+                child: CircleAvatar(
+                    radius: 80,
+                    backgroundColor: Colors.white.withOpacity(0.2))),
 
-            // 🔹 Full Name
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: 'Full Name',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // 🔹 Email
-            TextField(
-              controller: _emailController,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 16),
-
-            // 🔹 Sweeper ID
-            TextField(
-              controller: _sweeperIdController,
-              decoration: InputDecoration(
-                labelText: 'Sweeper ID',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // 🔹 Phone
-            TextField(
-              controller: _phoneController,
-              decoration: InputDecoration(
-                labelText: 'Phone Number',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 16),
-
-            // 🔹 Password
-            TextField(
-              controller: _passwordController,
-              obscureText: _obscurePassword,
-              decoration: InputDecoration(
-                labelText: 'Set Password',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _obscurePassword = !_obscurePassword;
-                    });
-                  },
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Already have an account? ',
-                  style: TextStyle(color: Colors.grey[700]),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const SweeperLoginScreen()),
-                    );
-                  },
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(
-                      color: Color(0xFF2972FE),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // 🔹 Register Button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _registerSweeper,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2972FE),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: _loading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                        'Register',
-                        style: TextStyle(fontSize: 18, color: Colors.white),
+            SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.person_add_rounded,
+                          size: 70, color: Color(0xFF2D3142)),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Create Account',
+                        style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF2D3142),
+                            letterSpacing: 1.1),
                       ),
+                      const Text('Join the clean city mission!',
+                          style:
+                              TextStyle(fontSize: 16, color: Colors.black54)),
+
+                      const SizedBox(height: 30),
+
+                      // Glassmorphic Card
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.5),
+                                  width: 2),
+                            ),
+                            child: Column(
+                              children: [
+                                _buildInputField(_nameController, 'Full Name',
+                                    Icons.person_outline),
+                                const SizedBox(height: 15),
+                                _buildInputField(_emailController, 'Email',
+                                    Icons.email_outlined,
+                                    keyboardType: TextInputType.emailAddress),
+                                const SizedBox(height: 15),
+                                _buildInputField(_sweeperIdController,
+                                    'Sweeper ID', Icons.badge_outlined),
+                                const SizedBox(height: 15),
+                                _buildInputField(
+                                    _phoneController,
+                                    'Phone Number',
+                                    Icons.phone_android_outlined,
+                                    keyboardType: TextInputType.phone),
+                                const SizedBox(height: 15),
+                                _buildInputField(
+                                  _passwordController,
+                                  'Set Password',
+                                  Icons.lock_outline_rounded,
+                                  isPassword: true,
+                                  suffix: IconButton(
+                                    icon: Icon(
+                                        _obscurePassword
+                                            ? Icons.visibility_off
+                                            : Icons.visibility,
+                                        size: 20),
+                                    onPressed: () => setState(() =>
+                                        _obscurePassword = !_obscurePassword),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 30),
+
+                                // Register Button
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 55,
+                                  child: ElevatedButton(
+                                    onPressed:
+                                        _loading ? null : _registerSweeper,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF22B5FE),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(15)),
+                                      elevation: 8,
+                                      shadowColor: const Color(0xFF22B5FE)
+                                          .withOpacity(0.4),
+                                    ),
+                                    child: _loading
+                                        ? const CircularProgressIndicator(
+                                            color: Colors.white)
+                                        : const Text('REGISTER',
+                                            style: TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 25),
+
+                      // Login Footer
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text("Already have an account? ",
+                              style: TextStyle(color: Colors.black54)),
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: const Text('Login',
+                                style: TextStyle(
+                                    color: Color(0xFF22B5FE),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 30),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildInputField(
+      TextEditingController controller, String label, IconData icon,
+      {bool isPassword = false,
+      TextInputType keyboardType = TextInputType.text,
+      Widget? suffix}) {
+    return TextField(
+      controller: controller,
+      obscureText: isPassword ? _obscurePassword : false,
+      keyboardType: keyboardType,
+      style: const TextStyle(fontSize: 15),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(
+            color: Color(0xFF2D3142), fontWeight: FontWeight.w500),
+        prefixIcon: Icon(icon, color: const Color(0xFF2D3142), size: 22),
+        suffixIcon: suffix,
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.6),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide.none),
+        contentPadding: const EdgeInsets.symmetric(vertical: 18),
       ),
     );
   }

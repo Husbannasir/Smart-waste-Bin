@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:my_app/admin_login_page.dart';
-// Make sure the following class exists in admin_login.dart:
-// class AdminLoginPage extends StatelessWidget { ... }
 
 class AdminSignupPage extends StatefulWidget {
   const AdminSignupPage({super.key});
@@ -23,6 +21,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   bool _loading = false;
+  bool _obscurePassword = true;
 
   Future<void> _registerAdmin() async {
     if (_emailController.text.isEmpty ||
@@ -37,9 +36,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
     }
 
     try {
-      setState(() {
-        _loading = true;
-      });
+      setState(() => _loading = true);
 
       // Create user with email & password
       UserCredential userCredential =
@@ -48,7 +45,7 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         password: _passwordController.text.trim(),
       );
 
-      // Save extra details in Firestore
+      // Save extra details in Firestore (using lowercase 'admins' for consistency)
       await _firestore.collection("admins").doc(userCredential.user!.uid).set({
         "fullName": _nameController.text.trim(),
         "email": _emailController.text.trim(),
@@ -61,7 +58,6 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         const SnackBar(content: Text("Admin registered successfully!")),
       );
 
-      // Navigate to login page
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const AdminLoginPage()),
@@ -71,120 +67,196 @@ class _AdminSignupPageState extends State<AdminSignupPage> {
         SnackBar(content: Text("Error: ${e.message}")),
       );
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Admin Sign up',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+      body: Stack(
+        children: [
+          // 1. Smooth Background Gradient (Matching Login/Intro)
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFE0EAFC), Color(0xFFCFDEF3)],
               ),
-              const SizedBox(height:  8),
-              const Text(
-                'Create an account to continue!',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _zoneIdController,
-                decoration: const InputDecoration(
-                  labelText: 'Zone ID',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _registerAdmin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF22B5FE),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+
+          // 2. Centered Signup Card
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 420),
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
                     ),
-                  ),
-                  child: _loading
-                      ? const CircularProgressIndicator(
-                          color: Colors.white,
-                        )
-                      : const Text('Register', style: TextStyle(fontSize: 18)),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Already have an account? '),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text(
-                      'Login',
-                      style: TextStyle(
-                        color: Color(0xFF22B5FE),
-                        fontWeight: FontWeight.bold,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Back Button & Header
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new,
+                              size: 20, color: Color(0xFF22B5FE)),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'Create Account',
+                            style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF2D3142)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Input Fields
+                    _buildTextField(
+                      controller: _nameController,
+                      label: 'Full Name',
+                      icon: Icons.person_outline,
+                      obscure: false,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      controller: _emailController,
+                      label: 'Email Address',
+                      icon: Icons.email_outlined,
+                      obscure: false,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      controller: _zoneIdController,
+                      label: 'Zone ID',
+                      icon: Icons.map_outlined,
+                      obscure: false,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      controller: _phoneController,
+                      label: 'Phone Number',
+                      icon: Icons.phone_outlined,
+                      obscure: false,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      controller: _passwordController,
+                      label: 'Password',
+                      icon: Icons.lock_outline,
+                      obscure: _obscurePassword,
+                      suffix: IconButton(
+                        icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            size: 20),
+                        onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword),
                       ),
                     ),
-                  ),
-                ],
+
+                    const SizedBox(height: 30),
+
+                    // Register Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        onPressed: _loading ? null : _registerAdmin,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF22B5FE),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15)),
+                        ),
+                        child: _loading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                            : const Text('Register',
+                                style: TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Footer Link
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text("Already have an account? ",
+                            style: TextStyle(color: Colors.black45)),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: const Text(
+                            'Log In',
+                            style: TextStyle(
+                                color: Color(0xFF22B5FE),
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // 🔹 Custom Text Field Helper (Same as Login Page for Consistency)
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required bool obscure,
+    Widget? suffix,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      style: const TextStyle(fontSize: 15),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 20, color: const Color(0xFF22B5FE)),
+        suffixIcon: suffix,
+        filled: true,
+        fillColor: const Color(0xFFF8FAFB),
+        labelStyle: const TextStyle(color: Colors.black45, fontSize: 13),
+        contentPadding: const EdgeInsets.symmetric(vertical: 18),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide(color: Colors.grey.withOpacity(0.1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFF22B5FE), width: 1.5),
         ),
       ),
     );

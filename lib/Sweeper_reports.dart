@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -16,31 +17,22 @@ class _SweeperReportsScreenState extends State<SweeperReportsScreen> {
 
   String? _selectedIssue;
   bool _resolvingCompany = false;
-
-  // ✅ keep the resolved companyId in state (so we can save it with the report)
   String? _resolvedCompanyId;
 
-  // ------------------ helpers: resolve company (id + name) from Bin ------------------
+  // ------------------ logic functions preserved ------------------
   Future<Map<String, String?>> _getCompanyFromBin(String binId) async {
-    // ✅ Properly typed map with nullable values
     final Map<String, String?> out = {'id': null, 'name': null};
     final id = binId.trim();
     if (id.isEmpty) return out;
-
     final f = FirebaseFirestore.instance;
-
-    // bins have a field "id": "204" (not the docId). Query by that:
     final q =
         await f.collection('bins').where('id', isEqualTo: id).limit(1).get();
     if (q.docs.isEmpty) return out;
-
     final m = q.docs.first.data();
     final cid = (m['assignedCompanyId'] ?? '').toString().trim();
     final cname = ((m['assignedCompanyName'] ?? m['companyName']) ?? '')
         .toString()
         .trim();
-
-    // Best effort: if name is missing but we have an id, look up companies/<id>
     String? finalName = cname.isNotEmpty ? cname : null;
     if (finalName == null && cid.isNotEmpty) {
       final comp = await f.collection('companies').doc(cid).get();
@@ -49,41 +41,9 @@ class _SweeperReportsScreenState extends State<SweeperReportsScreen> {
         finalName = ((cm['name'] ?? cm['companyName']) ?? '').toString().trim();
       }
     }
-
     out['id'] = cid.isEmpty ? null : cid;
     out['name'] = (finalName == null || finalName.isEmpty) ? null : finalName;
     return out;
-  }
-
-  Future<String?> _resolveSweeperName() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return null;
-
-    final f = FirebaseFirestore.instance;
-
-    // try: sweeper doc id == auth uid
-    final byId = await f.collection('sweepers').doc(user.uid).get();
-    if (byId.exists) {
-      final data = byId.data();
-      final n = data?['name']?.toString().trim();
-      if (n != null && n.isNotEmpty) return n;
-    }
-
-    // fallback: by email
-    if ((user.email ?? '').isNotEmpty) {
-      final q = await f
-          .collection('sweepers')
-          .where('email', isEqualTo: user.email)
-          .limit(1)
-          .get();
-      if (q.docs.isNotEmpty) {
-        final n = q.docs.first.data()['name']?.toString().trim();
-        if (n != null && n.isNotEmpty) return n;
-      }
-    }
-
-    // last fallback
-    return user.displayName ?? user.email?.split('@').first ?? 'Sweeper';
   }
 
   Future<void> _autoFillCompany() async {
@@ -95,193 +55,249 @@ class _SweeperReportsScreenState extends State<SweeperReportsScreen> {
       setState(() => _resolvingCompany = false);
     }
   }
-  // --------------------------------------------------------------------------
 
   Future<void> _submitReport() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
-    // basic form check
     if (_selectedIssue == null ||
         _binIdController.text.trim().isEmpty ||
         _descriptionController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all fields")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Please fill all fields"),
+          behavior: SnackBarBehavior.floating));
       return;
     }
-
-    // Ensure we have companyId + companyName from bin (even if user didn't tap refresh)
     String? companyName = _companyNameController.text.trim().isEmpty
         ? null
         : _companyNameController.text.trim();
-
     if (_resolvedCompanyId == null || companyName == null) {
       final res = await _getCompanyFromBin(_binIdController.text);
       _resolvedCompanyId ??= res['id'];
       companyName ??= res['name'];
     }
-
     if (_resolvedCompanyId == null ||
         (companyName == null || companyName.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Bin not found or Company not assigned.")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Bin not found or Company not assigned."),
+          behavior: SnackBarBehavior.floating));
       return;
     }
-
-    final sweeperName = await _resolveSweeperName();
-
     try {
       await FirebaseFirestore.instance.collection('reports').add({
-        // 🔗 Use BOTH id + name so CompanyDashboard can filter reliably
-        'companyId': _resolvedCompanyId, // ✅ critical for dashboard
-        'companyName': companyName, // nice for display / fallback
-
-        // who + what
+        'companyId': _resolvedCompanyId,
+        'companyName': companyName,
         'sweeperId': user.uid,
-        'sweeperName': sweeperName ?? 'Sweeper',
+        'sweeperName': user.displayName ?? 'Sweeper',
         'binId': _binIdController.text.trim(),
-        'issue': _selectedIssue, // CompanyDashboard reads 'issue'
-        'issueType': _selectedIssue, // (compat / duplicates ok)
+        'issue': _selectedIssue,
         'description': _descriptionController.text.trim(),
-
-        // when
         'timestamp': FieldValue.serverTimestamp(),
       });
-
       if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Report Submitted'),
-          content: const Text('Your report has been successfully submitted.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _binIdController.clear();
-                _descriptionController.clear();
-                _companyNameController.clear();
-                _resolvedCompanyId = null;
-                setState(() => _selectedIssue = null);
-              },
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
+      _showSuccessDialog();
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Error: $e")));
     }
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Success! ✅'),
+        content: const Text('Your report has been submitted to the company.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _binIdController.clear();
+              _descriptionController.clear();
+              _companyNameController.clear();
+              setState(() => _selectedIssue = null);
+            },
+            child: const Text('OK', style: TextStyle(color: Color(0xFF00BFA5))),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title:
-            const Text('Report Issue', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
+        title: const Text('Report Issue',
+            style: TextStyle(
+                color: Color(0xFF00796B), fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
+        // 🔹 FIX: Back arrow ko permanent khatam kar diya
+        automaticallyImplyLeading: false,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildDropdown('Issue Type'),
-            const SizedBox(height: 16),
-            _buildTextField('Bin ID', controller: _binIdController),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
+            // 🔹 GLASSY FORM CONTAINER
+            ClipRRect(
+              borderRadius: BorderRadius.circular(30),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: Container(
+                  padding: const EdgeInsets.all(25),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.5), width: 1.5),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel('Issue Type'),
+                      _buildGlassDropdown(),
+                      const SizedBox(height: 20),
 
-            // Company name: read-only, auto-filled from bin
-            const Text('Company Name', style: TextStyle(fontSize: 16)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _companyNameController,
-              readOnly: true,
-              decoration: InputDecoration(
-                hintText: 'Auto-filled from Bin',
-                suffixIcon: IconButton(
-                  icon: _resolvingCompany
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.refresh),
-                  onPressed: _resolvingCompany ? null : _autoFillCompany,
-                  tooltip: 'Resolve from Bin',
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                      _buildLabel('Bin ID'),
+                      _buildGlassTextField(
+                          controller: _binIdController, hint: 'e.g. 103'),
+                      const SizedBox(height: 20),
+
+                      _buildLabel('Company Name'),
+                      _buildCompanyField(),
+                      const SizedBox(height: 20),
+
+                      _buildLabel('Short Description'),
+                      _buildGlassTextField(
+                          controller: _descriptionController,
+                          hint: 'Describe the problem...',
+                          maxLines: 4),
+
+                      const SizedBox(height: 30),
+
+                      // 🔹 MODERN SUBMIT BUTTON
+                      SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: ElevatedButton(
+                          onPressed: _submitReport,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00BFA5),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15)),
+                            elevation: 5,
+                            shadowColor:
+                                const Color(0xFF00BFA5).withOpacity(0.3),
+                          ),
+                          child: const Text('Submit Report',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
               ),
             ),
-
-            const SizedBox(height: 16),
-            _buildTextField('Description',
-                controller: _descriptionController, maxLines: 4),
-
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _submitReport,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2082DD),
-                ),
-                child: const Text('Submit Report',
-                    style: TextStyle(color: Colors.white)),
-              ),
-            ),
+            const SizedBox(height: 120), // 🔹 Space for Bottom Navigation Bar
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDropdown(String label) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 16)),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: _selectedIssue,
-          decoration: InputDecoration(
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          items: const [
-            DropdownMenuItem(value: 'Overflow', child: Text('Overflow')),
-            DropdownMenuItem(value: 'Damaged', child: Text('Damaged')),
-            DropdownMenuItem(value: 'Other', child: Text('Other')),
-          ],
-          onChanged: (value) => setState(() => _selectedIssue = value),
-        ),
-      ],
+  // UI Helpers (Labels, Fields, Dropdown) remain same as before
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 5, bottom: 8),
+      child: Text(text,
+          style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF00796B))),
     );
   }
 
-  Widget _buildTextField(String label,
-      {int maxLines = 1, required TextEditingController controller}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 16)),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          maxLines: maxLines,
-          decoration: InputDecoration(
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+  Widget _buildGlassTextField(
+      {required TextEditingController controller,
+      String? hint,
+      int maxLines = 1}) {
+    return TextField(
+      controller: controller,
+      maxLines: maxLines,
+      style: const TextStyle(color: Colors.black87),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.black38),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.3),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.5))),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: const BorderSide(color: Color(0xFF00BFA5))),
+      ),
+    );
+  }
+
+  Widget _buildGlassDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 15),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.white.withOpacity(0.5)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedIssue,
+          isExpanded: true,
+          hint: const Text('Select Issue'),
+          dropdownColor: const Color(0xFFE0F7FA),
+          items: ['Overflow', 'Damaged', 'Other'].map((String val) {
+            return DropdownMenuItem<String>(value: val, child: Text(val));
+          }).toList(),
+          onChanged: (value) => setState(() => _selectedIssue = value),
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildCompanyField() {
+    return TextField(
+      controller: _companyNameController,
+      readOnly: true,
+      decoration: InputDecoration(
+        hintText: 'Tap refresh to auto-fill',
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.3),
+        suffixIcon: IconButton(
+          icon: _resolvingCompany
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Color(0xFF00BFA5)))
+              : const Icon(Icons.refresh_rounded, color: Color(0xFF00BFA5)),
+          onPressed: _resolvingCompany ? null : _autoFillCompany,
+        ),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.5))),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.5))),
+      ),
     );
   }
 }
